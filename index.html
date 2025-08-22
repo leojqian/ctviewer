@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CT Log Viewer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-file-alt"></i> CT Log Viewer</h1>
+                <div class="header-controls">
+                    <div class="search-container">
+                        <input type="text" id="globalSearch" placeholder="Search all logs..." class="search-input">
+                        <i class="fas fa-search search-icon"></i>
+                    </div>
+                    <button id="groupToggle" class="btn btn-primary">
+                        <i class="fas fa-layer-group"></i> Group by Second
+                    </button>
+                    <button id="syncScroll" class="btn btn-secondary">
+                        <i class="fas fa-link"></i> Sync Scroll
+                    </button>
+                    <button id="exportBtn" class="btn btn-secondary">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <h3>Processing Log Files...</h3>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+                <p id="loadingStatus">Initializing...</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- File Controls -->
+            <div class="file-controls">
+                <div class="file-control-group">
+                    <label for="btFile">BodyTom Log:</label>
+                    <input type="file" id="btFile" accept=".txt" class="file-input">
+                    <span class="file-name" id="btFileName">bt_log_2025-06-02.txt</span>
+                </div>
+                <div class="file-control-group">
+                    <label for="outFile">Osiris Log:</label>
+                    <input type="file" id="outFile" accept=".txt" class="file-input">
+                    <span class="file-name" id="outFileName">out.log20250602.txt</span>
+                </div>
+                <div class="file-control-group">
+                    <label for="rsFile">ReconServer Log:</label>
+                    <input type="file" id="rsFile" accept=".txt" class="file-input">
+                    <span class="file-name" id="rsFileName">rs_log_2025-06-02.txt</span>
+                </div>
+            </div>
+
+            <!-- Log Viewers -->
+            <div class="log-container">
+                <!-- BodyTom Log -->
+                <div class="log-panel">
+                    <div class="log-header">
+                        <h3><i class="fas fa-server"></i> BodyTom Scanner</h3>
+                        <div class="log-controls">
+                            <span class="error-count" id="btErrorCount" title="Errors and warnings"></span>
+                            <input type="text" placeholder="Search..." class="panel-search" data-panel="bt">
+                            <button class="btn btn-sm btn-clear" data-panel="bt">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="log-content" id="btLog">
+                        <div class="loading">Loading BodyTom log...</div>
+                        <div class="scrollbar-indicators" id="btScrollbarIndicators"></div>
+                    </div>
+                </div>
+
+                <!-- Osiris Log -->
+                <div class="log-panel">
+                    <div class="log-header">
+                        <h3><i class="fas fa-network-wired"></i> Osiris Communication</h3>
+                        <div class="log-controls">
+                            <span class="error-count" id="outErrorCount" title="Errors and warnings"></span>
+                            <input type="text" placeholder="Search..." class="panel-search" data-panel="out">
+                            <button class="btn btn-sm btn-clear" data-panel="out">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="log-content" id="outLog">
+                        <div class="loading">Loading Osiris log...</div>
+                        <div class="scrollbar-indicators" id="outScrollbarIndicators"></div>
+                    </div>
+                </div>
+
+                <!-- ReconServer Log -->
+                <div class="log-panel">
+                    <div class="log-header">
+                        <h3><i class="fas fa-cogs"></i> ReconServer</h3>
+                        <div class="log-controls">
+                            <span class="error-count" id="rsErrorCount" title="Errors and warnings"></span>
+                            <input type="text" placeholder="Search..." class="panel-search" data-panel="rs">
+                            <button class="btn btn-sm btn-clear" data-panel="rs">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="log-content" id="rsLog">
+                        <div class="loading">Loading ReconServer log...</div>
+                        <div class="scrollbar-indicators" id="rsScrollbarIndicators"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Status Bar -->
+        <footer class="status-bar">
+            <div class="status-info">
+                <span id="totalLines">Total lines: 0</span>
+                <span id="searchResults">Search results: 0</span>
+                <span id="selectedSecond">Selected: None</span>
+            </div>
+            <div class="status-controls">
+                <label>
+                    <input type="checkbox" id="autoScroll" checked> Auto-scroll
+                </label>
+                <label>
+                    <input type="checkbox" id="showTimestamps" checked> Show timestamps
+                </label>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 

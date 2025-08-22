@@ -1,0 +1,48 @@
+# Build artifacts
+dist/
+build/
+*.spec
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution packages
+ctviewer_package/
+*.zip
+*.tar.gz
+
+# PyInstaller
+*.manifest
+*.spec
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files (keep sample data)
+data/*.txt
+!data/sample_*.txt
+
+# Temporary files
+*.tmp
+*.temp
+*.log 

@@ -1,0 +1,146 @@
+name: Build and Release CT Log Viewer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: [3.8, 3.9, '3.10', '3.11']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+    
+    - name: Build executable
+      run: |
+        python build_executable.py
+    
+    - name: Create distribution package
+      run: |
+        python create_package.py
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ctviewer-${{ matrix.os }}-${{ matrix.python-version }}
+        path: |
+          dist/
+          ctviewer_package/
+    
+    - name: Create release assets
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      run: |
+        # Create zip files for distribution
+        cd dist
+        zip -r ctviewer-standalone.zip .
+        
+        cd ../ctviewer_package
+        zip -r ctviewer-package.zip .
+        
+        # Move to root for release
+        mv ctviewer-standalone.zip ../
+        mv ctviewer-package.zip ../
+    
+    - name: Upload release assets
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-assets
+        path: |
+          ctviewer-standalone.zip
+          ctviewer-package.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: |
+          ## 🚀 CT Log Viewer ${{ github.ref_name }}
+          
+          ### What's New
+          - Enhanced error detection and scrollbar indicators
+          - Improved synchronized scrolling
+          - Better performance for large log files
+          - Cross-file event selection
+          
+          ### Downloads
+          - **Standalone Executable**: `ctviewer-standalone.zip` (includes Python)
+          - **Package**: `ctviewer-package.zip` (requires Python 3.7+)
+          
+          ### Quick Start
+          ```bash
+          # One-line install
+          curl -sSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
+          
+          # Or clone and run
+          git clone https://github.com/${{ github.repository }}.git
+          cd ctviewer
+          python3 server.py
+          ```
+          
+          ### System Requirements
+          - Python 3.7+ (for package version)
+          - Modern web browser
+          - Windows 10+, macOS 10.14+, or Linux
+          
+          ### Support
+          - [Documentation](https://github.com/${{ github.repository }}/blob/main/README.md)
+          - [Issues](https://github.com/${{ github.repository }}/issues)
+          - [Discussions](https://github.com/${{ github.repository }}/discussions)
+        draft: false
+        prerelease: false
+    
+    - name: Upload Release Assets
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./artifacts/release-assets/ctviewer-standalone.zip
+        asset_name: ctviewer-standalone.zip
+        asset_content_type: application/zip
+    
+    - name: Upload Package Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./artifacts/release-assets/ctviewer-package.zip
+        asset_name: ctviewer-package.zip
+        asset_content_type: application/zip 
