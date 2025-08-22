@@ -15,6 +15,7 @@ A fast, web-based log viewer for analyzing multiple log files side-by-side with 
 - **📍 Scrollbar Indicators**: Visual markers for errors on scrollbars
 - **⏰ Event Grouping**: Group events by timestamp
 - **🎯 Cross-File Selection**: Select events and see corresponding ones in other files
+- **📁 File Upload**: Upload your own log files via drag & drop or file browser
 - **📱 Responsive Design**: Works on desktop and mobile browsers
 
 ## 🚀 Quick Start
@@ -65,6 +66,12 @@ data/
 - **Search**: Type in any search box to filter logs
 - **Sync Scroll**: Toggle to keep all panels synchronized
 - **Group by Second**: Toggle to group events by timestamp
+
+### File Management
+- **Upload Files**: Click "Upload Files" button to add new log files
+- **Drag & Drop**: Drag log files directly onto the upload area
+- **File Browser**: Click upload area to browse and select files
+- **View Files**: See all available log files with statistics
 
 ### Advanced Features
 - **Error Navigation**: Click red/orange dots on scrollbars to jump to errors
@@ -189,6 +196,8 @@ ctviewer/
 - `GET /api/search?q=error` - Search across all files
 - `GET /api/stats` - Get file statistics
 - `GET /api/errors?panel=bt` - Get error positions
+- `GET /api/files` - List available log files
+- `POST /api/upload` - Upload new log files
 
 ### Building Executables
 ```bash

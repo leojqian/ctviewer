@@ -11,6 +11,7 @@ class CTLogViewer {
         this.currentSearch = '';
         this.selectedSecond = null;
         this.groupBySecond = true;
+        this.isGroupSelectionActive = false;
         
         // Performance optimizations
         this.linesPerPage = 100;
@@ -64,6 +65,17 @@ class CTLogViewer {
                     this.updateScrollbarIndicators(panel);
                 });
             }
+        });
+
+        // Handle manual scrolling to clear group selection if user scrolls away
+        Object.keys(this.logs).forEach(panel => {
+            const log = this.logs[panel];
+            log.element.addEventListener('scroll', (e) => {
+                // If user manually scrolls while a group is selected, clear the selection
+                if (this.selectedSecond && !this.isGroupSelectionActive) {
+                    this.clearSelection();
+                }
+            });
         });
 
         // Panel-specific search with debouncing
@@ -176,6 +188,9 @@ class CTLogViewer {
             Object.keys(this.logs).forEach(panel => {
                 this.updateErrorCount(panel);
             });
+            
+            // Initialize file upload functionality
+            this.initFileUpload();
             
             this.hideLoadingOverlay();
             this.updateStatus();
@@ -698,6 +713,9 @@ class CTLogViewer {
         this.selectedSecond = secondKey;
         this.selectedSecondSpan.textContent = `Selected: ${this.formatSecondKey(secondKey)}`;
         
+        // Set flag to prevent sync scrolling conflicts
+        this.isGroupSelectionActive = true;
+        
         // Load and highlight the selected second across all panels
         this.loadAndHighlightSecond(secondKey);
     }
@@ -721,15 +739,18 @@ class CTLogViewer {
         
         // Wait a bit for DOM to update, then scroll to loaded content
         setTimeout(() => {
-            loadResults.forEach(({ panel, loaded }) => {
-                if (loaded) {
-                    // Scroll to the newly loaded content
-                    this.scrollToSecondInPanel(panel, secondKey);
-                } else {
-                    // If content was already loaded, scroll to existing content
-                    this.scrollToSecondInPanel(panel, secondKey);
-                }
-            });
+            // Temporarily disable sync scrolling to prevent conflicts
+            const wasSyncScrollEnabled = this.syncScroll;
+            this.syncScroll = false;
+            
+            // Scroll all panels to the selected second simultaneously
+            this.scrollAllPanelsToSecond(secondKey);
+            
+            // Re-enable sync scrolling after a delay
+            setTimeout(() => {
+                this.syncScroll = wasSyncScrollEnabled;
+                this.isGroupSelectionActive = false;
+            }, 1000);
             
             // Update status to show completion
             this.selectedSecondSpan.textContent = `Selected: ${this.formatSecondKey(secondKey)}`;
@@ -847,6 +868,86 @@ class CTLogViewer {
         });
     }
 
+    scrollAllPanelsToSecond(secondKey) {
+        // Calculate target positions for all panels first
+        const panelScrollTargets = {};
+        
+        Object.keys(this.logs).forEach(panel => {
+            const log = this.logs[panel];
+            const element = log.element;
+            
+            // Try to find the group header first
+            let targetElement = element.querySelector(`[data-second-key="${secondKey}"].log-group-header`);
+            
+            // If no group header, try any element with that second key
+            if (!targetElement) {
+                targetElement = element.querySelector(`[data-second-key="${secondKey}"]`);
+            }
+            
+            if (targetElement) {
+                // Calculate the target scroll position
+                const elementRect = targetElement.getBoundingClientRect();
+                const containerRect = element.getBoundingClientRect();
+                const targetScrollTop = element.scrollTop + elementRect.top - containerRect.top - (containerRect.height / 2);
+                
+                panelScrollTargets[panel] = {
+                    element: targetElement,
+                    targetScrollTop: Math.max(0, targetScrollTop)
+                };
+            }
+        });
+        
+        // Scroll all panels simultaneously using requestAnimationFrame for smooth animation
+        // Use a single animation frame to ensure perfect synchronization
+        const animationStartTime = performance.now();
+        
+        Object.keys(panelScrollTargets).forEach(panel => {
+            const { element, targetScrollTop } = panelScrollTargets[panel];
+            const log = this.logs[panel];
+            
+            // Use custom smooth scrolling for better control
+            this.smoothScrollTo(log.element, targetScrollTop, animationStartTime);
+            
+            // Add a brief flash effect to draw attention
+            element.style.transition = 'background-color 0.3s ease';
+            element.style.backgroundColor = '#fef3c7';
+            setTimeout(() => {
+                element.style.backgroundColor = '';
+            }, 1000);
+        });
+    }
+
+    smoothScrollTo(element, targetScrollTop, startTimeOverride = null) {
+        const startScrollTop = element.scrollTop;
+        const distance = targetScrollTop - startScrollTop;
+        
+        // If the distance is very small, don't animate
+        if (Math.abs(distance) < 10) {
+            element.scrollTop = targetScrollTop;
+            return;
+        }
+        
+        const duration = Math.min(800, Math.abs(distance) * 2); // Adaptive duration based on distance
+        let startTime = startTimeOverride;
+
+        function animate(currentTime) {
+            if (startTime === null) startTime = currentTime;
+            const timeElapsed = currentTime - startTime;
+            const progress = Math.min(timeElapsed / duration, 1);
+            
+            // Easing function for smooth deceleration
+            const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+            
+            element.scrollTop = startScrollTop + (distance * easeOutQuart);
+            
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            }
+        }
+        
+        requestAnimationFrame(animate);
+    }
+
     scrollToSecondInPanel(panel, secondKey) {
         const log = this.logs[panel];
         const element = log.element;
@@ -860,17 +961,13 @@ class CTLogViewer {
         }
         
         if (targetElement) {
-            // Always scroll to selected groups, regardless of auto-scroll setting
             // Calculate the target scroll position
             const elementRect = targetElement.getBoundingClientRect();
             const containerRect = element.getBoundingClientRect();
             const targetScrollTop = element.scrollTop + elementRect.top - containerRect.top - (containerRect.height / 2);
             
-            // Smooth scroll to the target position
-            element.scrollTo({
-                top: targetScrollTop,
-                behavior: 'smooth'
-            });
+            // Use custom smooth scrolling for better control
+            this.smoothScrollTo(element, Math.max(0, targetScrollTop));
             
             // Add a brief flash effect to draw attention
             targetElement.style.transition = 'background-color 0.3s ease';
@@ -886,6 +983,7 @@ class CTLogViewer {
     clearSelection() {
         this.selectedSecond = null;
         this.selectedSecondSpan.textContent = 'Selected: None';
+        this.isGroupSelectionActive = false;
         
         // Remove highlights from all panels
         Object.keys(this.logs).forEach(panel => {
@@ -982,7 +1080,7 @@ class CTLogViewer {
     }
 
     syncScrollPosition(scrolledElement) {
-        if (!this.syncScroll) return;
+        if (!this.syncScroll || this.isGroupSelectionActive) return;
         
         const scrollTop = scrolledElement.scrollTop;
         const scrollHeight = scrolledElement.scrollHeight;
@@ -1112,9 +1210,220 @@ class CTLogViewer {
             }
         }, 3000);
     }
+
+    // File Upload Methods
+    initFileUpload() {
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadModal = document.getElementById('uploadModal');
+        const closeUploadModal = document.getElementById('closeUploadModal');
+        const fileUpload = document.getElementById('fileUpload');
+        const uploadFilesBtn = document.getElementById('uploadFilesBtn');
+        const uploadDropZone = document.getElementById('uploadDropZone');
+
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', () => {
+                this.showUploadModal();
+            });
+        }
+
+        if (closeUploadModal) {
+            closeUploadModal.addEventListener('click', () => {
+                this.hideUploadModal();
+            });
+        }
+
+        if (fileUpload) {
+            fileUpload.addEventListener('change', (e) => {
+                this.handleFileSelection(e.target.files);
+            });
+        }
+
+        if (uploadFilesBtn) {
+            uploadFilesBtn.addEventListener('click', () => {
+                this.uploadSelectedFiles();
+            });
+        }
+
+        // Drag and drop functionality
+        if (uploadDropZone) {
+            uploadDropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadDropZone.classList.add('dragover');
+            });
+
+            uploadDropZone.addEventListener('dragleave', () => {
+                uploadDropZone.classList.remove('dragover');
+            });
+
+            uploadDropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadDropZone.classList.remove('dragover');
+                this.handleFileSelection(e.dataTransfer.files);
+            });
+
+            uploadDropZone.addEventListener('click', () => {
+                fileUpload.click();
+            });
+        }
+
+        // Load available files on modal open
+        this.loadAvailableFiles();
+    }
+
+    showUploadModal() {
+        const modal = document.getElementById('uploadModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            this.loadAvailableFiles();
+        }
+    }
+
+    hideUploadModal() {
+        const modal = document.getElementById('uploadModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    handleFileSelection(files) {
+        const uploadFilesBtn = document.getElementById('uploadFilesBtn');
+        if (files.length > 0) {
+            uploadFilesBtn.disabled = false;
+            uploadFilesBtn.textContent = `Upload ${files.length} File${files.length > 1 ? 's' : ''}`;
+        } else {
+            uploadFilesBtn.disabled = true;
+            uploadFilesBtn.textContent = 'Upload Files';
+        }
+    }
+
+    async uploadSelectedFiles() {
+        const fileUpload = document.getElementById('fileUpload');
+        const files = fileUpload.files;
+        
+        if (files.length === 0) return;
+
+        this.showLoadingOverlay('Uploading files...');
+        
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const progress = ((i + 1) / files.length) * 100;
+                this.updateLoadingProgress(progress);
+                this.updateLoadingStatus(`Uploading ${file.name}...`);
+
+                await this.uploadFile(file);
+            }
+
+            this.showNotification('Files uploaded successfully!', 'success');
+            this.loadAvailableFiles();
+            this.hideUploadModal();
+            
+            // Refresh the log viewer with new files
+            this.loadLogs();
+            
+        } catch (error) {
+            this.showError(`Upload failed: ${error.message}`);
+        } finally {
+            this.hideLoadingOverlay();
+            fileUpload.value = ''; // Clear file input
+            this.handleFileSelection([]);
+        }
+    }
+
+    async uploadFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error);
+        }
+
+        const result = await response.json();
+        return result;
+    }
+
+    async loadAvailableFiles() {
+        const fileList = document.getElementById('fileList');
+        if (!fileList) return;
+
+        try {
+            const response = await fetch('/api/files');
+            if (!response.ok) {
+                throw new Error('Failed to load files');
+            }
+
+            const data = await response.json();
+            this.renderFileList(data.files);
+        } catch (error) {
+            fileList.innerHTML = `<div class="error">Error loading files: ${error.message}</div>`;
+        }
+    }
+
+    renderFileList(files) {
+        const fileList = document.getElementById('fileList');
+        if (!fileList) return;
+
+        if (files.length === 0) {
+            fileList.innerHTML = '<div class="no-files">No log files found. Upload some files to get started!</div>';
+            return;
+        }
+
+        const fileItems = files.map(file => {
+            const size = this.formatFileSize(file.size);
+            const lines = file.totalLines.toLocaleString();
+            
+            return `
+                <div class="file-item">
+                    <div class="file-info">
+                        <div class="file-name">${file.filename}</div>
+                        <div class="file-stats">
+                            ${size} • ${lines} lines
+                            ${file.levelCounts.error > 0 ? `• ${file.levelCounts.error} errors` : ''}
+                            ${file.levelCounts.warning > 0 ? `• ${file.levelCounts.warning} warnings` : ''}
+                        </div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="btn-remove" onclick="ctViewer.removeFile('${file.filename}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        fileList.innerHTML = fileItems;
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    async removeFile(filename) {
+        if (!confirm(`Are you sure you want to delete ${filename}?`)) {
+            return;
+        }
+
+        try {
+            // Note: We'll need to add a DELETE endpoint to the server for this
+            // For now, we'll just show a message
+            this.showNotification(`File deletion not yet implemented. You can manually delete ${filename} from the data/ folder.`, 'warning');
+        } catch (error) {
+            this.showError(`Failed to remove file: ${error.message}`);
+        }
+    }
 }
 
 // Initialize the viewer when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    new CTLogViewer();
+    window.ctViewer = new CTLogViewer();
 }); 

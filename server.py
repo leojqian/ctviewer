@@ -49,6 +49,26 @@ class CTLogViewerHandler(http.server.SimpleHTTPRequestHandler):
             # Try to serve from current directory
             super().do_GET()
     
+    def do_POST(self):
+        """Handle POST requests for file uploads"""
+        # Parse the URL
+        parsed_url = urlparse(self.path)
+        path = parsed_url.path
+        
+        # Handle file upload endpoint
+        if path == '/api/upload':
+            self.handle_file_upload()
+        else:
+            self.send_error(404, "Endpoint not found")
+    
+    def do_OPTIONS(self):
+        """Handle preflight CORS requests"""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+    
     def handle_api_request(self, path, query):
         """Handle API requests for streaming log data"""
         if path == '/api/logs':
@@ -61,6 +81,8 @@ class CTLogViewerHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_stats_api(query)
         elif path == '/api/errors':
             self.handle_errors_api(query)
+        elif path == '/api/files':
+            self.handle_files_api(query)
         else:
             self.send_error(404, "API endpoint not found")
     
@@ -373,6 +395,110 @@ class CTLogViewerHandler(http.server.SimpleHTTPRequestHandler):
         
         return matches
     
+    def handle_file_upload(self):
+        """Handle file upload requests"""
+        try:
+            # Get content length
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length == 0:
+                self.send_error(400, "No file content")
+                return
+            
+            # Read the uploaded file content
+            file_data = self.rfile.read(content_length)
+            
+            # Parse multipart form data
+            # Simple parsing for demonstration - in production you might want a more robust parser
+            boundary = self.headers.get('Content-Type', '').split('boundary=')[-1]
+            
+            # Extract filename and content from multipart data
+            filename = None
+            content = None
+            
+            # Simple boundary parsing
+            parts = file_data.split(b'--' + boundary.encode())
+            for part in parts:
+                if b'filename=' in part:
+                    # Extract filename
+                    filename_start = part.find(b'filename="') + 10
+                    filename_end = part.find(b'"', filename_start)
+                    filename = part[filename_start:filename_end].decode('utf-8')
+                    
+                    # Extract content (after headers)
+                    content_start = part.find(b'\r\n\r\n') + 4
+                    content = part[content_start:].strip(b'\r\n-')
+                    break
+            
+            if not filename or not content:
+                self.send_error(400, "Invalid file upload")
+                return
+            
+            # Ensure data directory exists
+            data_dir = os.path.join(os.getcwd(), 'data')
+            os.makedirs(data_dir, exist_ok=True)
+            
+            # Save the file
+            file_path = os.path.join(data_dir, filename)
+            with open(file_path, 'wb') as f:
+                f.write(content)
+            
+            # Send success response
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+            response = {
+                'success': True,
+                'message': f'File {filename} uploaded successfully',
+                'filename': filename,
+                'size': len(content)
+            }
+            
+            self.wfile.write(json.dumps(response).encode('utf-8'))
+            
+        except Exception as e:
+            print(f"Error handling file upload: {e}")
+            self.send_error(500, f"Upload failed: {str(e)}")
+    
+    def handle_files_api(self, query):
+        """Handle requests to list available log files"""
+        try:
+            data_dir = os.path.join(os.getcwd(), 'data')
+            if not os.path.exists(data_dir):
+                self.send_json_response({'files': []})
+                return
+            
+            files = []
+            for filename in os.listdir(data_dir):
+                if filename.endswith('.txt') or filename.endswith('.log'):
+                    file_path = os.path.join(data_dir, filename)
+                    if os.path.isfile(file_path):
+                        stats = self.get_file_stats(file_path)
+                        files.append({
+                            'filename': filename,
+                            'size': stats['fileSize'],
+                            'totalLines': stats['totalLines'],
+                            'levelCounts': stats['levelCounts']
+                        })
+            
+            # Sort files by modification time (newest first)
+            files.sort(key=lambda x: os.path.getmtime(os.path.join(data_dir, x['filename'])), reverse=True)
+            
+            self.send_json_response({'files': files})
+            
+        except Exception as e:
+            print(f"Error listing files: {e}")
+            self.send_error(500, f"Failed to list files: {str(e)}")
+    
+    def send_json_response(self, data):
+        """Send a JSON response"""
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode('utf-8'))
+    
     def get_file_stats(self, file_path):
         """Get statistics about a log file"""
         try:
@@ -445,6 +571,8 @@ def main():
                 print("  - /api/logs?panel=bt&offset=0&limit=50")
                 print("  - /api/search?q=error")
                 print("  - /api/stats")
+                print("  - /api/files (GET: list files, POST: upload files)")
+                print("  - /api/upload (POST: upload new log files)")
                 httpd.serve_forever()
                 break
         except OSError as e:

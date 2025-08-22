@@ -28,9 +28,45 @@
                     <button id="exportBtn" class="btn btn-secondary">
                         <i class="fas fa-download"></i> Export
                     </button>
+                    <button id="uploadBtn" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Upload Files
+                    </button>
                 </div>
             </div>
         </header>
+
+        <!-- File Upload Modal -->
+        <div id="uploadModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-upload"></i> Upload Log Files</h3>
+                    <button class="modal-close" id="closeUploadModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="upload-section">
+                        <h4>Upload New Log Files</h4>
+                        <div class="file-upload-area">
+                            <input type="file" id="fileUpload" multiple accept=".txt,.log" class="file-upload-input">
+                            <div class="upload-drop-zone" id="uploadDropZone">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>Drag & drop log files here or click to browse</p>
+                                <p class="upload-hint">Supports .txt and .log files</p>
+                            </div>
+                        </div>
+                        <button id="uploadFilesBtn" class="btn btn-primary" disabled>
+                            <i class="fas fa-upload"></i> Upload Files
+                        </button>
+                    </div>
+                    
+                    <div class="upload-section">
+                        <h4>Available Log Files</h4>
+                        <div class="file-list" id="fileList">
+                            <div class="loading">Loading files...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Loading Overlay -->
         <div id="loadingOverlay" class="loading-overlay" style="display: none;">
